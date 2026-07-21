@@ -3,15 +3,28 @@ const ctx = canvas.getContext('2d');
 const playArea = document.getElementById('playArea');
 let W, H;
 
+// গ্লোবাল সাইজ স্কেল ভেরিয়াবেল
+let currentScale = 1.0; 
+
+// ---------- Mobile & Responsive Screen Scaling ----------
 function resize() {
   const rect = playArea.getBoundingClientRect();
-  W = canvas.width = rect.width;
-  H = canvas.height = rect.height;
+  const dpr = window.devicePixelRatio || 1;
+
+  W = rect.width;
+  H = rect.height;
+
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = `${W}px`;
+  canvas.style.height = `${H}px`;
+
+  ctx.scale(dpr, dpr);
 }
 window.addEventListener('resize', resize);
 resize();
 
-// ---------- Physics core (Verlet integration) ----------
+// ---------- Physics Core (Verlet Integration) ----------
 const GROUND_Y = () => H - 40;
 const CEIL_Y = () => 12;
 let gravity = 0.6;
@@ -42,24 +55,40 @@ class Point {
   constrainToBounds() {
     const groundY = GROUND_Y();
     const ceilY = CEIL_Y();
+    let speed = Math.hypot(this.x - this.oldx, this.y - this.oldy);
+
     if (this.y > groundY - this.radius) {
       let vx = (this.x - this.oldx) * GROUND_FRICTION;
       this.y = groundY - this.radius;
       this.oldy = this.y + Math.abs(this.y - this.oldy) * 0.35;
       this.oldx = this.x - vx;
+
+      if (speed > 7) {
+        spawnParticles(this.x, this.y, 8, ['#ff4757', '#ffa502', '#ffffff'], 2, 6, 10, 20, 2, 4);
+      }
     }
     if (this.y < ceilY + this.radius) {
       this.y = ceilY + this.radius;
       this.oldy = this.y;
+      if (speed > 7) {
+        spawnParticles(this.x, this.y, 6, ['#ff4757', '#ffa502'], 2, 5, 10, 20, 2, 4);
+      }
     }
-    if (this.x < this.radius) { this.x = this.radius; this.oldx = this.x; }
-    if (this.x > W - this.radius) { this.x = W - this.radius; this.oldx = this.x; }
+    if (this.x < this.radius) { 
+      this.x = this.radius; this.oldx = this.x; 
+      if (speed > 7) spawnParticles(this.x, this.y, 6, ['#ff4757', '#ffa502'], 2, 5, 10, 20, 2, 4);
+    }
+    if (this.x > W - this.radius) { 
+      this.x = W - this.radius; this.oldx = this.x; 
+      if (speed > 7) spawnParticles(this.x, this.y, 6, ['#ff4757', '#ffa502'], 2, 5, 10, 20, 2, 4);
+    }
   }
   applyImpulse(ix, iy) {
     if (this.pinned) return;
     this.oldx -= ix;
     this.oldy -= iy;
     this.flash = 10;
+    spawnParticles(this.x, this.y, 10, ['#ff4757', '#ff6b6b', '#ffffff'], 2, 7, 10, 25, 2, 5);
   }
 }
 
@@ -82,17 +111,19 @@ class Stick {
   }
 }
 
-// ---------- Ragdoll construction ----------
+// ---------- Ragdoll Construction ----------
 const colors = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#a29bfe', '#fd79a8', '#55efc4', '#fab1a0'];
 
 class Ragdoll {
-  constructor(x, y) {
+  constructor(x, y, scaleMult = 1.0) {
     this.color = colors[Math.floor(Math.random() * colors.length)];
-    const s = 42;
+    const isMobile = W < 600;
+    const baseSize = isMobile ? 36 : 42; 
+    this.scale = scaleMult;
+    const s = baseSize * this.scale;
 
     this.head      = new Point(x, y);
     this.neck      = new Point(x, y + s);
-    // বডি চিকন করার জন্য কাঁধ ও কোমর সংকুচিত করা হয়েছে
     this.shoulderL = new Point(x - s * 0.55, y + s + 4);
     this.shoulderR = new Point(x + s * 0.55, y + s + 4);
     this.elbowL    = new Point(x - s * 1.3, y + s * 2.2);
@@ -158,16 +189,13 @@ class Ragdoll {
 
   draw(ctx) {
     const partHidden = (part) => !!(part && customImages[part]);
-
-    // হাত ও পা-কে ফিল্টার করে পেছনে রাখা
     const legAndHandSticks = this.sticks.filter(s => s.part && (s.part.includes('Leg') || s.part.includes('Hand')));
     const bodySticks = this.sticks.filter(s => !s.part || s.part === 'body' || s.part === 'head');
 
     ctx.lineCap = 'round';
 
-    // ১. প্রথমে হাত ও পা আঁকা হবে (যাতে এগুলো পেছনে থাকে)
     ctx.strokeStyle = this.color;
-    ctx.lineWidth = 10;
+    ctx.lineWidth = 10 * this.scale;
     legAndHandSticks.forEach(s => {
       if (partHidden(s.part)) return;
       ctx.beginPath();
@@ -176,8 +204,7 @@ class Ragdoll {
       ctx.stroke();
     });
 
-    // ২. এবার বডি আঁকা হবে (হাত-পায়ের উপরে)
-    ctx.lineWidth = 14; 
+    ctx.lineWidth = 14 * this.scale; 
     bodySticks.forEach(s => {
       if (partHidden(s.part)) return;
       ctx.beginPath();
@@ -186,7 +213,6 @@ class Ragdoll {
       ctx.stroke();
     });
 
-    // ৩. জয়েন্ট ডট আঁকা
     const visible = new Set();
     this.sticks.forEach(s => {
       if (!partHidden(s.part)) { visible.add(s.p1); visible.add(s.p2); }
@@ -195,20 +221,19 @@ class Ragdoll {
     this.points.forEach(p => {
       if (!visible.has(p)) return;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 6 * this.scale, 0, Math.PI * 2);
       ctx.fill();
     });
 
-    // ৪. সবার উপরে মাথা এবং ফেস ড্রয়িং
     if (!partHidden('head')) {
-      const headRadius = 28;
+      const headRadius = 28 * this.scale;
 
       ctx.fillStyle = this.color;
       ctx.beginPath();
       ctx.arc(this.head.x, this.head.y, headRadius, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#22242f';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3 * this.scale;
       ctx.stroke();
 
       if (this.head.flash > 0) {
@@ -216,7 +241,7 @@ class Ragdoll {
         ctx.globalAlpha = this.head.flash / 10;
         ctx.fillStyle = '#fff';
         ctx.beginPath();
-        ctx.arc(this.head.x, this.head.y, 32, 0, Math.PI * 2);
+        ctx.arc(this.head.x, this.head.y, headRadius + 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
@@ -227,17 +252,19 @@ class Ragdoll {
       ctx.translate(this.head.x, this.head.y);
       ctx.rotate(angle - Math.PI / 2);
 
-      // চোখ
+      const eyeOffset = 9 * this.scale;
+      const eyeSize = 4 * this.scale;
+      const mouthRadius = 11 * this.scale;
+
       ctx.fillStyle = '#22242f';
       ctx.beginPath();
-      ctx.arc(-9, -4, 4, 0, Math.PI * 2);
-      ctx.arc(9, -4, 4, 0, Math.PI * 2);
+      ctx.arc(-eyeOffset, -4 * this.scale, eyeSize, 0, Math.PI * 2);
+      ctx.arc(eyeOffset, -4 * this.scale, eyeSize, 0, Math.PI * 2);
       ctx.fill();
 
-      // হাঁসি মুখ
       ctx.beginPath();
-      ctx.arc(0, 4, 11, 0.15 * Math.PI, 0.85 * Math.PI);
-      ctx.lineWidth = 2.5;
+      ctx.arc(0, 4 * this.scale, mouthRadius, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.lineWidth = 2.5 * this.scale;
       ctx.strokeStyle = '#22242f';
       ctx.stroke();
 
@@ -246,7 +273,7 @@ class Ragdoll {
   }
 
   nearestPoint(x, y, maxDist = 38) {
-    let best = null, bestDist = maxDist;
+    let best = null, bestDist = maxDist * this.scale;
     this.points.forEach(p => {
       const d = Math.hypot(p.x - x, p.y - y);
       if (d < bestDist) { bestDist = d; best = p; }
@@ -255,21 +282,17 @@ class Ragdoll {
   }
 }
 
-// ---------- Custom part images ----------
-const PART_IMAGE_URLS = {
-  head: 'assets/head.png',
-  body: 'assets/body.png',
-  leftHand: 'assets/left_hand.png',
-  rightHand: 'assets/right_hand.png',
-  leftLeg: 'assets/left_leg.png',
-  rightLeg: 'assets/right_leg.png'
+// ---------- Custom Part Images ----------
+const PART_IMAGE_URLS = { 
+  head: 'assets/head.png', 
+  body: 'assets/body.png', 
+  leftHand: 'assets/left_hand.png', 
+  rightHand: 'assets/right_hand.png', 
+  leftLeg: 'assets/left_leg.png', 
+  rightLeg: 'assets/right_leg.png' 
 };
+const customImages = { head: null, body: null, leftHand: null, rightHand: null, leftLeg: null, rightLeg: null };
 
-const customImages = {
-  head: null, body: null,
-  leftHand: null, rightHand: null,
-  leftLeg: null, rightLeg: null
-};
 Object.keys(PART_IMAGE_URLS).forEach(part => {
   const url = PART_IMAGE_URLS[part];
   if (!url) return;
@@ -316,14 +339,13 @@ function drawBodyImage(ctx, img, neck, hip, shoulderL, shoulderR) {
 }
 
 function drawCustomOverlays(r, ctx) {
-  // কাস্টম ছবির ক্ষেত্রেও হাত ও পা আগে এঁকে পেছনে রাখা হচ্ছে
-  if (customImages.leftHand) drawLimbImage(ctx, customImages.leftHand, r.shoulderL, r.handL);
-  if (customImages.rightHand) drawLimbImage(ctx, customImages.rightHand, r.shoulderR, r.handR);
-  if (customImages.leftLeg) drawLimbImage(ctx, customImages.leftLeg, r.hipL, r.footL);
-  if (customImages.rightLeg) drawLimbImage(ctx, customImages.rightLeg, r.hipR, r.footR);
+  if (customImages.leftHand) drawLimbImage(ctx, customImages.leftHand, r.shoulderL, r.handL, 35 * r.scale);
+  if (customImages.rightHand) drawLimbImage(ctx, customImages.rightHand, r.shoulderR, r.handR, 35 * r.scale);
+  if (customImages.leftLeg) drawLimbImage(ctx, customImages.leftLeg, r.hipL, r.footL, 35 * r.scale);
+  if (customImages.rightLeg) drawLimbImage(ctx, customImages.rightLeg, r.hipR, r.footR, 35 * r.scale);
 
   if (customImages.body) drawBodyImage(ctx, customImages.body, r.neck, r.hip, r.shoulderL, r.shoulderR);
-  if (customImages.head) drawHeadImage(ctx, customImages.head, r.head, r.neck);
+  if (customImages.head) drawHeadImage(ctx, customImages.head, r.head, r.neck, 70 * r.scale);
 }
 
 // ---------- Particles ----------
@@ -365,7 +387,7 @@ function drawParticles(ctx) {
   });
 }
 
-// ---------- Explosion physics ----------
+// ---------- Explosion Physics ----------
 function applyExplosion(x, y, radius, strength) {
   ragdolls.forEach(r => {
     r.points.forEach(p => {
@@ -389,35 +411,62 @@ function applyExplosion(x, y, radius, strength) {
   });
 }
 
-// ---------- Weapons ----------
+// ---------- Dynamic Muzzle & Recoil Weapons Logic ----------
 let bombs = [];
 let bullets = [];
 let laserActive = false;
 let laserTarget = { x: 0, y: 0 };
+let currentGunAngle = -Math.PI / 2;
+let recoilOffset = 0; // রিকোয়েল বা পিছিয়ে আসার মান
+const BARREL_LENGTH = 38; // নলের দৈর্ঘ্য
 const TURRET = () => ({ x: W / 2, y: H - 34 });
 
 function placeBomb(x, y) {
   bombs.push({ x, y, vx: 0, vy: 0, fuse: 90, radius: 14 });
 }
 
+// ১. ডায়নামিক পয়েন্ট ও রিকোয়েল লজিক সহ শুটিং
 function fireBullet(targetX, targetY, type) {
   const origin = TURRET();
-  const dx = targetX - origin.x, dy = targetY - origin.y;
-  const dist = Math.hypot(dx, dy) || 1;
+  
+  // মাউস/টাচের দিকে টার্গেট অ্যাঙ্গেল হিসাব
+  const angle = Math.atan2(targetY - origin.y, targetX - origin.x);
+  currentGunAngle = angle;
+
+  // ফায়ারিং-এর সময় রিকোয়েল সেট করা (পেছনে ধাক্কা খাবে)
+  recoilOffset = type === 'bazooka' ? 18 : 10;
+
+  // নলের ডগার ডায়নামিক পজিশন হিসাব (Muzzle Tip Position)
+  const currentBarrelLen = BARREL_LENGTH - recoilOffset;
+  const muzzleX = origin.x + Math.cos(angle) * currentBarrelLen;
+  const muzzleY = origin.y + Math.sin(angle) * currentBarrelLen;
+
   const speed = type === 'bazooka' ? 14 : 26;
   bullets.push({
-    x: origin.x, y: origin.y,
-    vx: (dx / dist) * speed, vy: (dy / dist) * speed,
+    x: muzzleX, 
+    y: muzzleY,
+    vx: Math.cos(angle) * speed, 
+    vy: Math.sin(angle) * speed,
     type,
     radius: type === 'bazooka' ? 9 : 4,
     power: type === 'bazooka' ? 30 : 16,
     trail: []
   });
+
+  // নলের ডগায় ফায়ারিং স্পার্ক ও ধোঁয়া ছড়ানো
+  spawnParticles(muzzleX, muzzleY, 10, ['#fffa65', '#ffaf40', '#ff4d4d', '#ffffff'], 2, 7, 6, 14, 2, 5);
 }
 
 function updateWeapons() {
   const groundY = GROUND_Y();
   const ceilY = CEIL_Y();
+
+  // রিকোয়েল রিকভারি অ্যানিমেশন (ধীরে ধীরে আগের জায়গায় ফেরা)
+  if (recoilOffset > 0) {
+    recoilOffset *= 0.82; 
+    if (recoilOffset < 0.1) recoilOffset = 0;
+  }
+
   bombs.forEach(b => {
     b.vy += gravity * gravityDir;
     b.x += b.vx;
@@ -463,7 +512,7 @@ function updateWeapons() {
             spawnParticles(bl.x, bl.y, 34, ['#ff9f43', '#ff6b6b', '#feca57'], 2, 8, 18, 34, 2, 5);
           } else {
             p.applyImpulse(dirx * bl.power, diry * bl.power);
-            spawnParticles(bl.x, bl.y, 8, ['#fdcb6e', '#ffeaa7', '#ffffff'], 1, 4, 8, 16, 1, 3);
+            spawnParticles(bl.x, bl.y, 12, ['#fdcb6e', '#ffeaa7', '#ffffff'], 1, 5, 8, 18, 1, 4);
           }
           return false;
         }
@@ -547,27 +596,59 @@ function drawWeapons(ctx) {
     ctx.restore();
   }
 
+  // ---------- Dynamic Recoil Turret Renderer ----------
   const origin = TURRET();
-  let angle = -Math.PI / 2;
-  if (laserActive) angle = Math.atan2(laserTarget.y - origin.y, laserTarget.x - origin.x);
+
   ctx.save();
   ctx.translate(origin.x, origin.y);
-  ctx.rotate(angle);
-  ctx.fillStyle = '#576574';
-  ctx.fillRect(-6, -6, 34, 12);
+  ctx.rotate(currentGunAngle);
+
+  // রিকোয়েল হিসাব করে গান ড্র করা (recoilOffset এর কারণে পুরো গান বডি সাময়িকভাবে পিছাবে)
+  const drawOffset = -recoilOffset;
+
+  // ১. মেটালিক গান ব্যারেল (Gun Barrel)
+  ctx.fillStyle = '#2f3542';
+  ctx.fillRect(drawOffset, -6, BARREL_LENGTH, 12); 
+
+  // ২. নলের সামনের অংশ (Muzzle Tip)
+  ctx.fillStyle = '#747d8c';
+  ctx.fillRect(drawOffset + BARREL_LENGTH - 4, -7, 6, 14);
+
+  // ৩. বন্দুকের বডি (Main Gun Body)
+  ctx.fillStyle = '#57606f';
+  ctx.fillRect(drawOffset - 12, -10, 24, 20);
+
+  // ৪. রিকোয়েল ফ্ল্যাশ (Muzzle Flash Spark)
+  if (recoilOffset > 4) {
+    ctx.fillStyle = '#fffa65';
+    ctx.beginPath();
+    ctx.arc(drawOffset + BARREL_LENGTH + 8, 0, 11, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ff4d4d';
+    ctx.beginPath();
+    ctx.arc(drawOffset + BARREL_LENGTH + 12, 0, 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   ctx.restore();
-  ctx.fillStyle = '#2d3436';
+
+  // ৫. গান বেস মাউন্ট (Turret Base)
+  ctx.fillStyle = '#1e272e';
   ctx.beginPath();
-  ctx.arc(origin.x, origin.y, 12, 0, Math.PI * 2);
+  ctx.arc(origin.x, origin.y, 16, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = '#747d8c';
+  ctx.lineWidth = 3;
+  ctx.stroke();
 }
 
-// ---------- World ----------
+// ---------- World Setup ----------
 let ragdolls = [];
 const countLabel = document.getElementById('countLabel');
 
 function addRagdoll(x, y) {
-  ragdolls.push(new Ragdoll(x ?? (100 + Math.random() * (W - 200)), y ?? (CEIL_Y() + 60)));
+  ragdolls.push(new Ragdoll(x ?? (100 + Math.random() * (W - 200)), y ?? (CEIL_Y() + 60), currentScale));
   countLabel.textContent = `Ragdolls: ${ragdolls.length}`;
 }
 function clearAll() {
@@ -581,7 +662,15 @@ function clearAll() {
 addRagdoll(W * 0.35, CEIL_Y() + 40);
 addRagdoll(W * 0.65, CEIL_Y() + 90);
 
-// ---------- Weapon mode selection ----------
+// ---------- Size Slider Event ----------
+const sizeSlider = document.getElementById('sizeSlider');
+if (sizeSlider) {
+  sizeSlider.addEventListener('input', (e) => {
+    currentScale = parseFloat(e.target.value);
+  });
+}
+
+// ---------- Weapon Mode Selection ----------
 let mode = 'drag';
 const modeButtons = {
   drag: document.getElementById('w-drag'),
@@ -590,14 +679,15 @@ const modeButtons = {
   bazooka: document.getElementById('w-bazooka'),
   laser: document.getElementById('w-laser'),
 };
+
 function setMode(m) {
   mode = m;
-  Object.entries(modeButtons).forEach(([k, btn]) => btn.classList.toggle('active', k === m));
+  Object.entries(modeButtons).forEach(([k, btn]) => btn && btn.classList.toggle('active', k === m));
   if (m !== 'laser') laserActive = false;
 }
-Object.entries(modeButtons).forEach(([k, btn]) => btn.addEventListener('click', () => setMode(k)));
+Object.entries(modeButtons).forEach(([k, btn]) => btn && btn.addEventListener('click', () => setMode(k)));
 
-// ---------- Interaction ----------
+// ---------- Touch & Mouse Interaction ----------
 let dragging = null;
 
 function getPos(e) {
@@ -637,6 +727,7 @@ function pointerDown(e) {
   } else if (mode === 'laser') {
     laserActive = true;
     laserTarget = pos;
+    currentGunAngle = Math.atan2(pos.y - TURRET().y, pos.x - TURRET().x);
   }
   e.preventDefault && e.preventDefault();
 }
@@ -648,6 +739,7 @@ function pointerMove(e) {
     dragging.oldx = pos.x; dragging.oldy = pos.y;
   } else if (mode === 'laser' && laserActive) {
     laserTarget = pos;
+    currentGunAngle = Math.atan2(pos.y - TURRET().y, pos.x - TURRET().x);
   }
   e.preventDefault && e.preventDefault();
 }
@@ -664,15 +756,15 @@ canvas.addEventListener('touchstart', pointerDown, { passive: false });
 canvas.addEventListener('touchmove', pointerMove, { passive: false });
 window.addEventListener('touchend', pointerUp);
 
-document.getElementById('addBtn').addEventListener('click', () => addRagdoll());
-document.getElementById('clearBtn').addEventListener('click', clearAll);
-document.getElementById('gravityBtn').addEventListener('click', () => { gravityDir *= -1; });
-document.getElementById('windBtn').addEventListener('click', () => {
+document.getElementById('addBtn')?.addEventListener('click', () => addRagdoll());
+document.getElementById('clearBtn')?.addEventListener('click', clearAll);
+document.getElementById('gravityBtn')?.addEventListener('click', () => { gravityDir *= -1; });
+document.getElementById('windBtn')?.addEventListener('click', () => {
   windForce = (Math.random() > 0.5 ? 1 : -1) * (6 + Math.random() * 6);
   setTimeout(() => { windForce = 0; }, 300);
 });
 
-// ---------- Render loop ----------
+// ---------- Main Render Loop ----------
 function drawGround() {
   const groundY = GROUND_Y();
   ctx.fillStyle = '#12162b';
