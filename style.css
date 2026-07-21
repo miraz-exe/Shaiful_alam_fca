@@ -1,0 +1,66 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100%;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #0d0f1f;
+}
+
+/* App is a column: solid control panel on top, play area (canvas) fills the rest.
+   They are two physically separate regions -- nothing drawn in the canvas can
+   ever appear behind the panel because the canvas literally starts below it. */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+#panel {
+  flex: 0 0 auto;
+  background: #171a33;
+  border-bottom: 2px solid #3d4270;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  padding: 8px 10px;
+  z-index: 10;
+}
+
+#ui, #weaponBar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+#weaponBar { margin-top: 6px; }
+
+button {
+  background: #3a3f6b;
+  color: #fff;
+  border: 1px solid #565c9e;
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+button:hover { background: #4a4f8b; }
+
+button.active {
+  background: #e17055;
+  border-color: #ff9478;
+  box-shadow: 0 0 8px #e1705588;
+}
+
+#countLabel { color: #ccd; font-size: 13px; margin-left: 4px; }
+#info { color: #8890b5; font-size: 12px; margin-top: 6px; }
+
+#playArea {
+  flex: 1 1 auto;
+  position: relative;
+  min-height: 0;
+  background: linear-gradient(#1b1f3b, #0d0f1f);
+}
+
+canvas { display: block; touch-action: none; width: 100%; height: 100%; }

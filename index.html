@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ragdoll Physics Playground — Weapons Edition</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+  <div id="panel">
+    <div id="ui">
+      <button id="addBtn">➕ Add Ragdoll</button>
+      <button id="clearBtn">🗑 Clear All</button>
+      <button id="gravityBtn">🌗 Flip Gravity</button>
+      <button id="windBtn">💨 Wind Gust</button>
+      <span id="countLabel">Ragdolls: 0</span>
+    </div>
+    <div id="weaponBar">
+      <button id="w-drag" class="active">✋ Drag</button>
+      <button id="w-bomb">💣 Bomb</button>
+      <button id="w-gun">🔫 Gun</button>
+      <button id="w-bazooka">🚀 Bazooka</button>
+      <button id="w-laser">🔦 Laser</button>
+    </div>
+    <div id="info">Drag: grab joints or click empty space to spawn. Bomb: click to drop (still drag joints too). Gun/Bazooka: click to fire at that spot. Laser: hold and aim.</div>
+  </div>
+  <div id="playArea">
+    <canvas id="canvas"></canvas>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
