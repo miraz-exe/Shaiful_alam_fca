@@ -1,30 +1,127 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="bn">
 <head>
-<meta charset="UTF-8">
-<title>Ragdoll Physics Playground — Weapons Edition</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Ragdoll Physics Sandbox</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0f111a;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100vh;
+    }
+    header {
+      background: #1a1d2d;
+      color: #fff;
+      padding: 10px 15px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      z-index: 10;
+    }
+    .controls-left, .controls-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #2e344e;
+      color: #fff;
+      border: 1px solid #475175;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    button:hover {
+      background: #3d466b;
+    }
+    button.active {
+      background: #00cec9;
+      color: #000;
+      border-color: #81ecec;
+    }
+    .size-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #dfe6e9;
+      font-size: 13px;
+      background: #252a3e;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #3d466b;
+    }
+    .size-control input[type="range"] {
+      width: 80px;
+      accent-color: #00cec9;
+      cursor: pointer;
+    }
+    #countLabel {
+      color: #a0a8c0;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    #playArea {
+      flex: 1;
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+  </style>
 </head>
 <body>
 
 <div id="app">
-  <div id="panel">
-    <div id="ui">
-      <button id="addBtn">➕ Add Ragdoll</button>
-      <button id="clearBtn">🗑 Clear All</button>
-      <button id="gravityBtn">🌗 Flip Gravity</button>
-      <button id="windBtn">💨 Wind Gust</button>
+  <header>
+    <div class="controls-left">
+      <button id="addBtn">+ Add Ragdoll</button>
+      <button id="clearBtn">Clear</button>
+      <button id="gravityBtn">Gravity</button>
+      <button id="windBtn">Wind</button>
+      <div class="size-control">
+        <label for="sizeSlider">Size:</label>
+        <input type="range" id="sizeSlider" min="0.5" max="2.0" step="0.1" value="1.0">
+      </div>
+    </div>
+
+    <div class="controls-right">
+      <button id="w-drag" class="active">Drag</button>
+      <button id="w-bomb">Bomb</button>
+      <button id="w-gun">Gun</button>
+      <button id="w-bazooka">Bazooka</button>
+      <button id="w-laser">Laser</button>
       <span id="countLabel">Ragdolls: 0</span>
     </div>
-    <div id="weaponBar">
-      <button id="w-drag" class="active">✋ Drag</button>
-      <button id="w-bomb">💣 Bomb</button>
-      <button id="w-gun">🔫 Gun</button>
-      <button id="w-bazooka">🚀 Bazooka</button>
-      <button id="w-laser">🔦 Laser</button>
-    </div>
-    <div id="info">Drag: grab joints or click empty space to spawn. Bomb: click to drop (still drag joints too). Gun/Bazooka: click to fire at that spot. Laser: hold and aim.</div>
-  </div>
+  </header>
+
   <div id="playArea">
     <canvas id="canvas"></canvas>
   </div>
