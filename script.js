@@ -34,6 +34,9 @@ const FRICTION = 0.99;
 const GROUND_FRICTION = 0.85;
 const CONSTRAINT_ITERATIONS = 5;
 
+// রক্তের কালার প্যালেট
+const BLOOD_COLORS = ['#800000', '#a70000', '#d00000', '#ff0000', '#4a0000'];
+
 class Point {
   constructor(x, y, pinned = false) {
     this.x = x; this.y = y;
@@ -64,23 +67,23 @@ class Point {
       this.oldx = this.x - vx;
 
       if (speed > 7) {
-        spawnParticles(this.x, this.y, 8, ['#ff4757', '#ffa502', '#ffffff'], 2, 6, 10, 20, 2, 4);
+        spawnParticles(this.x, this.y, 8, BLOOD_COLORS, 2, 6, 20, 40, 1.5, 4);
       }
     }
     if (this.y < ceilY + this.radius) {
       this.y = ceilY + this.radius;
       this.oldy = this.y;
       if (speed > 7) {
-        spawnParticles(this.x, this.y, 6, ['#ff4757', '#ffa502'], 2, 5, 10, 20, 2, 4);
+        spawnParticles(this.x, this.y, 6, BLOOD_COLORS, 2, 5, 15, 30, 1.5, 4);
       }
     }
     if (this.x < this.radius) { 
       this.x = this.radius; this.oldx = this.x; 
-      if (speed > 7) spawnParticles(this.x, this.y, 6, ['#ff4757', '#ffa502'], 2, 5, 10, 20, 2, 4);
+      if (speed > 7) spawnParticles(this.x, this.y, 6, BLOOD_COLORS, 2, 5, 15, 30, 1.5, 4);
     }
     if (this.x > W - this.radius) { 
       this.x = W - this.radius; this.oldx = this.x; 
-      if (speed > 7) spawnParticles(this.x, this.y, 6, ['#ff4757', '#ffa502'], 2, 5, 10, 20, 2, 4);
+      if (speed > 7) spawnParticles(this.x, this.y, 6, BLOOD_COLORS, 2, 5, 15, 30, 1.5, 4);
     }
   }
   applyImpulse(ix, iy) {
@@ -88,7 +91,8 @@ class Point {
     this.oldx -= ix;
     this.oldy -= iy;
     this.flash = 10;
-    spawnParticles(this.x, this.y, 10, ['#ff4757', '#ff6b6b', '#ffffff'], 2, 7, 10, 25, 2, 5);
+    // রক্ত ছিটকে পড়া (Blood Splatter)
+    spawnParticles(this.x, this.y, 18, BLOOD_COLORS, 2, 8, 20, 45, 1.5, 4.5);
   }
 }
 
@@ -171,11 +175,36 @@ class Ragdoll {
       new Stick(this.kneeR, this.footR, 1, 'rightLeg'),
     ];
 
+    // হাত-পা উল্টে যাওয়া রোধ করার জন্য Internal Muscle Constraints
     this.softSticks = [
-      new Stick(this.head, this.shoulderL, 0.15),
-      new Stick(this.head, this.shoulderR, 0.15),
+      new Stick(this.head, this.shoulderL, 0.2),
+      new Stick(this.head, this.shoulderR, 0.2),
+      new Stick(this.shoulderL, this.handL, 0.15),
+      new Stick(this.shoulderR, this.handR, 0.15),
+      new Stick(this.hipL, this.footL, 0.12),
+      new Stick(this.hipR, this.footR, 0.12),
       new Stick(this.footL, this.footR, 0.05),
     ];
+  }
+
+  // মাটিতে বা শূন্যে স্বাভাবিক হাত-পায়ের ভঙ্গি রাখার লজিক
+  applyMuscleTension() {
+    const groundY = GROUND_Y();
+    
+    // ১. হাত যেন অনর্থক উল্টে মাথার ওপরে বা পিঠের উল্টোদিকে না থাকে
+    [ [this.shoulderL, this.elbowL, this.handL], [this.shoulderR, this.elbowR, this.handR] ].forEach(([s, e, h]) => {
+      if (h.y < s.y - 12 * this.scale) {
+        h.y += 0.8;
+      }
+    });
+
+    // ২. পা যদি উল্টে গিয়ে মাথার দিক মুচড়ে যায়
+    [ [this.hipL, this.kneeL, this.footL], [this.hipR, this.kneeR, this.footR] ].forEach(([hp, k, f]) => {
+      if (f.y < hp.y) {
+        f.y += 1.5;
+        k.y += 1.0;
+      }
+    });
   }
 
   update() {
@@ -185,6 +214,9 @@ class Ragdoll {
       this.softSticks.forEach(s => s.update());
       this.points.forEach(p => p.constrainToBounds());
     }
+    
+    // মাসল টেনশন প্রয়োগ করা
+    this.applyMuscleTension();
   }
 
   draw(ctx) {
@@ -239,7 +271,7 @@ class Ragdoll {
       if (this.head.flash > 0) {
         ctx.save();
         ctx.globalAlpha = this.head.flash / 10;
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = '#a70000';
         ctx.beginPath();
         ctx.arc(this.head.x, this.head.y, headRadius + 4, 0, Math.PI * 2);
         ctx.fill();
@@ -348,7 +380,7 @@ function drawCustomOverlays(r, ctx) {
   if (customImages.head) drawHeadImage(ctx, customImages.head, r.head, r.neck, 70 * r.scale);
 }
 
-// ---------- Particles ----------
+// ---------- Blood Particles ----------
 let particles = [];
 function spawnParticles(x, y, count, colorList, speedMin, speedMax, lifeMin, lifeMax, sizeMin, sizeMax) {
   for (let i = 0; i < count; i++) {
@@ -365,16 +397,33 @@ function spawnParticles(x, y, count, colorList, speedMin, speedMax, lifeMin, lif
     });
   }
 }
+
 function updateParticles() {
+  const groundY = GROUND_Y();
+
   particles.forEach(p => {
     p.x += p.vx;
     p.y += p.vy;
-    p.vy += 0.15;
-    p.vx *= 0.97;
+
+    // রক্ত ভারী হওয়ায় গ্র্যাভিটি বেশি (0.45)
+    p.vy += 0.45;
+    
+    // বাতাসে এয়ার রেজিস্ট্যান্স
+    p.vx *= 0.95;
+
+    // মাটিতে পড়ার পর আটকে যাওয়ার ইফেক্ট
+    if (p.y >= groundY - p.size) {
+      p.y = groundY - p.size;
+      p.vx *= 0.2; 
+      p.vy = 0;
+    }
+
     p.life -= 1;
   });
+
   particles = particles.filter(p => p.life > 0);
 }
+
 function drawParticles(ctx) {
   particles.forEach(p => {
     ctx.save();
@@ -417,26 +466,21 @@ let bullets = [];
 let laserActive = false;
 let laserTarget = { x: 0, y: 0 };
 let currentGunAngle = -Math.PI / 2;
-let recoilOffset = 0; // রিকোয়েল বা পিছিয়ে আসার মান
-const BARREL_LENGTH = 38; // নলের দৈর্ঘ্য
+let recoilOffset = 0;
+const BARREL_LENGTH = 38;
 const TURRET = () => ({ x: W / 2, y: H - 34 });
 
 function placeBomb(x, y) {
   bombs.push({ x, y, vx: 0, vy: 0, fuse: 90, radius: 14 });
 }
 
-// ১. ডায়নামিক পয়েন্ট ও রিকোয়েল লজিক সহ শুটিং
 function fireBullet(targetX, targetY, type) {
   const origin = TURRET();
-  
-  // মাউস/টাচের দিকে টার্গেট অ্যাঙ্গেল হিসাব
   const angle = Math.atan2(targetY - origin.y, targetX - origin.x);
   currentGunAngle = angle;
 
-  // ফায়ারিং-এর সময় রিকোয়েল সেট করা (পেছনে ধাক্কা খাবে)
   recoilOffset = type === 'bazooka' ? 18 : 10;
 
-  // নলের ডগার ডায়নামিক পজিশন হিসাব (Muzzle Tip Position)
   const currentBarrelLen = BARREL_LENGTH - recoilOffset;
   const muzzleX = origin.x + Math.cos(angle) * currentBarrelLen;
   const muzzleY = origin.y + Math.sin(angle) * currentBarrelLen;
@@ -453,7 +497,7 @@ function fireBullet(targetX, targetY, type) {
     trail: []
   });
 
-  // নলের ডগায় ফায়ারিং স্পার্ক ও ধোঁয়া ছড়ানো
+  // ফায়ারিং স্পার্ক
   spawnParticles(muzzleX, muzzleY, 10, ['#fffa65', '#ffaf40', '#ff4d4d', '#ffffff'], 2, 7, 6, 14, 2, 5);
 }
 
@@ -461,7 +505,6 @@ function updateWeapons() {
   const groundY = GROUND_Y();
   const ceilY = CEIL_Y();
 
-  // রিকোয়েল রিকভারি অ্যানিমেশন (ধীরে ধীরে আগের জায়গায় ফেরা)
   if (recoilOffset > 0) {
     recoilOffset *= 0.82; 
     if (recoilOffset < 0.1) recoilOffset = 0;
@@ -489,7 +532,9 @@ function updateWeapons() {
   });
   bombs.filter(b => b.fuse <= 0).forEach(b => {
     applyExplosion(b.x, b.y, 180, 40);
-    spawnParticles(b.x, b.y, 40, ['#ff9f43', '#ff6b6b', '#feca57', '#ffffff'], 2, 9, 20, 40, 2, 6);
+    // বোমা বিস্ফোরণে রক্ত ও বিস্ফোরণ একসাথে
+    spawnParticles(b.x, b.y, 35, BLOOD_COLORS, 2, 9, 20, 40, 2, 6);
+    spawnParticles(b.x, b.y, 15, ['#ff9f43', '#feca57', '#ffffff'], 2, 9, 15, 30, 2, 5);
   });
   bombs = bombs.filter(b => b.fuse > 0);
 
@@ -499,6 +544,7 @@ function updateWeapons() {
     bl.x += bl.vx;
     bl.y += bl.vy;
   });
+
   bullets = bullets.filter(bl => {
     if (bl.x < -50 || bl.x > W + 50 || bl.y < -50 || bl.y > H + 50) return false;
     for (const r of ragdolls) {
@@ -509,10 +555,11 @@ function updateWeapons() {
           const dirx = bl.vx / mag, diry = bl.vy / mag;
           if (bl.type === 'bazooka') {
             applyExplosion(bl.x, bl.y, 140, 35);
-            spawnParticles(bl.x, bl.y, 34, ['#ff9f43', '#ff6b6b', '#feca57'], 2, 8, 18, 34, 2, 5);
+            spawnParticles(bl.x, bl.y, 35, BLOOD_COLORS, 3, 10, 20, 50, 2, 6);
+            spawnParticles(bl.x, bl.y, 15, ['#ff9f43', '#ffa502'], 2, 8, 15, 30, 2, 5);
           } else {
             p.applyImpulse(dirx * bl.power, diry * bl.power);
-            spawnParticles(bl.x, bl.y, 12, ['#fdcb6e', '#ffeaa7', '#ffffff'], 1, 5, 8, 18, 1, 4);
+            spawnParticles(bl.x, bl.y, 20, BLOOD_COLORS, 2, 9, 25, 60, 2, 5);
           }
           return false;
         }
@@ -538,12 +585,10 @@ function updateWeapons() {
           const perpx = -diry, perpy = dirx;
           const side = ((p.x - closeX) * perpx + (p.y - closeY) * perpy) >= 0 ? 1 : -1;
           p.applyImpulse(perpx * side * 2.2 + dirx * 0.4, perpy * side * 2.2 + diry * 0.4);
+          spawnParticles(p.x, p.y, 2, BLOOD_COLORS, 1, 4, 10, 20, 1.5, 3.5);
         }
       });
     });
-    if (Math.random() < 0.6) {
-      spawnParticles(origin.x + dirx * Math.random() * len, origin.y + diry * Math.random() * len, 1, ['#00fff0', '#ff2e63'], 0.3, 1, 6, 12, 1, 2);
-    }
   }
 }
 
@@ -596,29 +641,24 @@ function drawWeapons(ctx) {
     ctx.restore();
   }
 
-  // ---------- Dynamic Recoil Turret Renderer ----------
+  // Turret Renderer
   const origin = TURRET();
 
   ctx.save();
   ctx.translate(origin.x, origin.y);
   ctx.rotate(currentGunAngle);
 
-  // রিকোয়েল হিসাব করে গান ড্র করা (recoilOffset এর কারণে পুরো গান বডি সাময়িকভাবে পিছাবে)
   const drawOffset = -recoilOffset;
 
-  // ১. মেটালিক গান ব্যারেল (Gun Barrel)
   ctx.fillStyle = '#2f3542';
   ctx.fillRect(drawOffset, -6, BARREL_LENGTH, 12); 
 
-  // ২. নলের সামনের অংশ (Muzzle Tip)
   ctx.fillStyle = '#747d8c';
   ctx.fillRect(drawOffset + BARREL_LENGTH - 4, -7, 6, 14);
 
-  // ৩. বন্দুকের বডি (Main Gun Body)
   ctx.fillStyle = '#57606f';
   ctx.fillRect(drawOffset - 12, -10, 24, 20);
 
-  // ৪. রিকোয়েল ফ্ল্যাশ (Muzzle Flash Spark)
   if (recoilOffset > 4) {
     ctx.fillStyle = '#fffa65';
     ctx.beginPath();
@@ -633,7 +673,6 @@ function drawWeapons(ctx) {
 
   ctx.restore();
 
-  // ৫. গান বেস মাউন্ট (Turret Base)
   ctx.fillStyle = '#1e272e';
   ctx.beginPath();
   ctx.arc(origin.x, origin.y, 16, 0, Math.PI * 2);
@@ -734,12 +773,16 @@ function pointerDown(e) {
 
 function pointerMove(e) {
   const pos = getPos(e);
+  
+  // গান সবসময় মাউস পজিশন ট্র্যাক করবে
+  const origin = TURRET();
+  currentGunAngle = Math.atan2(pos.y - origin.y, pos.x - origin.x);
+
   if (dragging) {
     dragging.x = pos.x; dragging.y = pos.y;
     dragging.oldx = pos.x; dragging.oldy = pos.y;
   } else if (mode === 'laser' && laserActive) {
     laserTarget = pos;
-    currentGunAngle = Math.atan2(pos.y - TURRET().y, pos.x - TURRET().x);
   }
   e.preventDefault && e.preventDefault();
 }
